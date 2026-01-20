@@ -19,58 +19,52 @@ def on_startup():
     database.create_db_and_tables()
     
     # Initialize default schemas
+    import json
+    from defaults import DEFAULT_LISTS
+    
+    # Seed default lists if not present
+    for key, values in DEFAULT_LISTS.items():
+        if not crud.get_global_setting(key):
+            crud.set_global_setting(key, values)
+
+    # Fetch current genres for schema
+    current_genres = crud.get_global_setting("genres")
+    genre_options = json.loads(current_genres.value) if current_genres else DEFAULT_LISTS["genres"]
+
+    # Initialize default schemas - SIMPLIFIED as per user request
     default_schema = {
         "story_settings": {
             "name": "Story Settings",
             "fields": [
-                {"key": "title_working", "label": "Working Title", "type": "string"},
-                {"key": "logline", "label": "Logline", "type": "text"},
-                {"key": "genre", "label": "Genre", "type": "array"},
-                {"key": "setting_one_liner", "label": "Setting One-liner", "type": "text"},
-                {"key": "tone", "label": "Tone", "type": "array"},
-                {"key": "themes", "label": "Themes", "type": "array"},
-                {"key": "narrative", "label": "Narrative Details", "type": "object", "fields": [
-                    {"key": "format", "label": "Format", "type": "string"},
-                    {"key": "target_length_words", "label": "Target Length (Words)", "type": "number"},
-                    {"key": "pov", "label": "POV", "type": "string"}
-                ]}
+                {"key": "genre", "label": "Genre", "type": "select", "options": genre_options},
+                {"key": "description", "label": "Description", "type": "text"}
             ]
         },
         "character": {
             "name": "Character",
             "fields": [
-                {"key": "role", "label": "Role", "type": "string"},
-                {"key": "goal", "label": "Primary Goal", "type": "text"},
-                {"key": "flaws", "label": "Flaws", "type": "array"}
+                {"key": "description", "label": "Description", "type": "text"}
             ]
-        }
-    }
-    
-    # Extended default schema
-    default_schema.update({
+        },
         "location": {
             "name": "Location",
             "fields": [
-                {"key": "description", "label": "Description", "type": "text"},
-                {"key": "sights", "label": "Sights", "type": "array"},
-                {"key": "smells", "label": "Smells", "type": "array"}
+                {"key": "description", "label": "Description", "type": "text"}
             ]
         },
         "arc": {
             "name": "Story Arc",
             "fields": [
-                {"key": "type", "label": "Arc Type", "type": "string"},
-                {"key": "resolution", "label": "Resolution", "type": "text"}
+                {"key": "description", "label": "Description", "type": "text"}
             ]
         },
         "timeline": {
             "name": "Timeline",
             "fields": [
-                {"key": "date", "label": "Date/Time", "type": "string"},
-                {"key": "significance", "label": "Significance", "type": "text"}
+                {"key": "description", "label": "Description", "type": "text"}
             ]
         }
-    })
+    }
     
     existing = crud.get_global_setting("bible_schema")
     if not existing:
@@ -147,6 +141,18 @@ def delete_chapter(chapter_id: int):
     if not crud.delete_chapter(chapter_id):
         raise HTTPException(status_code=404, detail="Chapter not found")
     return {"message": "Chapter deleted"}
+
+@app.get("/settings")
+def read_all_settings():
+    import json
+    settings = crud.get_all_global_settings()
+    result = {}
+    for s in settings:
+        try:
+            result[s.key] = json.loads(s.value)
+        except:
+            result[s.key] = s.value
+    return result
 
 @app.get("/settings/{key}")
 def read_setting(key: str):

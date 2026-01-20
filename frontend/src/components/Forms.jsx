@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { SlashEditor } from '../SlashEditor';
 
 export function ArrayInput({ value = [], onChange, placeholder }) {
     const [input, setInput] = useState('');
@@ -33,13 +34,52 @@ export function ArrayInput({ value = [], onChange, placeholder }) {
     );
 }
 
-export function DynamicForm({ schema, value, onChange }) {
+export function MultiSelect({ options = [], value = [], onChange, placeholder }) {
+    // value is array of strings
+    const remove = (val) => {
+        onChange(value.filter(v => v !== val));
+    };
+
+    const add = (e) => {
+        const val = e.target.value;
+        if (val && !value.includes(val)) {
+            onChange([...value, val]);
+        }
+        // Reset select to default
+        e.target.value = "";
+    };
+
+    return (
+        <div className="array-input">
+            {value.map(v => (
+                <span key={v} className="array-chip">
+                    {v} <button onClick={() => remove(v)}>&times;</button>
+                </span>
+            ))}
+            <select
+                className="array-input-field"
+                onChange={add}
+                value=""
+                style={{ color: 'var(--text-secondary)' }}
+            >
+                <option value="" disabled>{placeholder}</option>
+                {options.filter(opt => !value.includes(opt)).map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                ))}
+            </select>
+        </div>
+    );
+}
+
+export function DynamicForm({ schema, value, onChange, globalLists }) {
     const handleChange = (key, val) => {
         onChange({ ...value, [key]: val });
     };
 
     const renderField = (field, currentVal, path = '') => {
         const val = currentVal?.[field.key] ?? (field.type === 'array' ? [] : field.type === 'object' ? {} : '');
+
+
 
         switch (field.type) {
             case 'string':
@@ -58,9 +98,11 @@ export function DynamicForm({ schema, value, onChange }) {
                 return (
                     <div key={path + field.key} className="form-group">
                         <label>{field.label}</label>
-                        <textarea
+                        <SlashEditor
                             value={val}
-                            onChange={e => handleChange(field.key, e.target.value)}
+                            onChange={v => handleChange(field.key, v)}
+                            bibleElements={globalLists?.bibleElements || []}
+                            placeholder={`Enter ${field.label}...`}
                         />
                     </div>
                 );
@@ -75,6 +117,40 @@ export function DynamicForm({ schema, value, onChange }) {
                         />
                     </div>
                 );
+            case 'select': {
+                // Resolve options: priority to resolved globalList via listRef, fallback to embedded options
+                const options = (field.listRef && globalLists?.[field.listRef])
+                    ? globalLists[field.listRef]
+                    : (field.options || []);
+
+                if (field.multi) {
+                    return (
+                        <div key={path + field.key} className="form-group">
+                            <label>{field.label}</label>
+                            <MultiSelect
+                                options={options}
+                                value={Array.isArray(val) ? val : []}
+                                onChange={v => handleChange(field.key, v)}
+                                placeholder={`Select ${field.label}...`}
+                            />
+                        </div>
+                    );
+                }
+                return (
+                    <div key={path + field.key} className="form-group">
+                        <label>{field.label}</label>
+                        <select
+                            value={val}
+                            onChange={e => handleChange(field.key, e.target.value)}
+                        >
+                            <option value="">Select {field.label}...</option>
+                            {options.map(opt => (
+                                <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                        </select>
+                    </div>
+                );
+            }
             case 'object':
                 return (
                     <div key={path + field.key} className="form-group">

@@ -15,6 +15,7 @@ function InnerApp() {
   // Global State
   const [stories, setStories] = useState([]);
   const [bibleSchema, setBibleSchema] = useState({});
+  const [globalLists, setGlobalLists] = useState({});
 
   // Story-specific State (Lifted for Breadcrumbs access)
   const [currentStory, setCurrentStory] = useState(null);
@@ -30,6 +31,7 @@ function InnerApp() {
   useEffect(() => {
     fetchStories();
     fetchSchema();
+    fetchGlobalLists();
   }, []);
 
   // Sync currentStory and fetch details when URL changes
@@ -49,6 +51,18 @@ function InnerApp() {
   }, [storyId, stories]);
 
   // --- API Helpers ---
+
+  const fetchGlobalLists = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/settings`);
+      const data = await res.json();
+      const lists = {};
+      Object.entries(data).forEach(([key, val]) => {
+        if (Array.isArray(val)) lists[key] = val;
+      });
+      setGlobalLists(lists);
+    } catch (e) { console.error(e); }
+  };
 
   const fetchSchema = async () => {
     try {
@@ -192,6 +206,7 @@ function InnerApp() {
               bibleElements={bibleElements}
               chapters={chapters}
               bibleSchema={bibleSchema}
+              globalLists={globalLists}
               onRefreshBible={() => fetchBible(storyId)}
               onRefreshChapters={() => fetchChapters(storyId)}
               onCreateBibleElement={createBibleElement}

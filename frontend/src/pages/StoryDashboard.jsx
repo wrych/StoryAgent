@@ -29,6 +29,7 @@ function StoryDashboard({
     bibleElements,
     chapters,
     bibleSchema,
+    globalLists, // added globalLists
     onRefreshBible,
     onRefreshChapters,
     onCreateBibleElement,
@@ -88,6 +89,7 @@ function StoryDashboard({
                             storyId={story.id}
                             elements={bibleElements}
                             schema={bibleSchema}
+                            globalLists={globalLists}
                             onRefresh={onRefreshBible}
                             onAdd={(type) => {
                                 setModalType('bible');

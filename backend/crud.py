@@ -16,7 +16,12 @@ def set_global_setting(key: str, value: dict):
             setting = GlobalSetting(key=key, value=json.dumps(value))
         session.add(setting)
         session.commit()
+        session.commit()
         return setting
+
+def get_all_global_settings():
+    with Session(engine) as session:
+        return session.exec(select(GlobalSetting)).all()
 
 def get_stories():
     with Session(engine) as session:

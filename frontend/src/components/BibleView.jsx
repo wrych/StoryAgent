@@ -5,7 +5,7 @@ import { DynamicForm } from './Forms';
 
 const API_BASE = 'http://localhost:8000';
 
-function BibleView({ storyId, elements, schema, onRefresh, onAdd, onDelete }) {
+function BibleView({ storyId, elements, schema, globalLists, onRefresh, onAdd, onDelete }) {
     const { elementId } = useParams();
     const navigate = useNavigate();
     const [editing, setEditing] = useState(null);
@@ -41,39 +41,37 @@ function BibleView({ storyId, elements, schema, onRefresh, onAdd, onDelete }) {
 
     const types = Object.keys(schema).filter(t => t !== 'story_settings');
 
-    const sortedElements = [...elements].sort((a, b) => {
-        if (a.type === 'story_settings') return -1;
-        if (b.type === 'story_settings') return 1;
-        return 0;
-    });
 
-    // If specific element is selected, show just that editor? 
-    // Or show modal? Or show expanded card?
-    // The user asked for "edit windows as crumbs". 
-    // Current UI is "Detailed Editor takes over simple card slot".
-    // Let's keep the grid but expand the one being edited, OR (better for deep linking)
-    // if elementId is present, we show the Editor View. 
-
-    // However, the existing UI just expands the card in place. 
-    // To keep it simple and familiar, we'll keep the grid and just auto-expand the one matching the ID.
-    // Actually, if we deep link, we might want a focused view. 
-    // Let's stick to the "expand in place" behavior for now as it's least disruptive, 
-    // but ensure `editing` state is driven by URL.
 
     return (
         <div className="bible-view">
             <div className="bible-toolbar">
-                {types.map(t => (
-                    <button key={t} onClick={() => onAdd(t)}>+ {schema[t]?.name || t}</button>
-                ))}
+                {/* Add buttons based on schema */}
+                {Object.entries(schema)
+                    .filter(([key]) => key !== 'story_settings')
+                    .map(([key, config]) => (
+                        <button key={key} onClick={() => onAdd(key)}>
+                            + Add {config.name}
+                        </button>
+                    ))}
             </div>
+
             <div className="bible-grid">
-                {sortedElements.map(el => {
+                {/* Special handling for unique/single items like Story Settings if we want them always top 
+                    But the grid layout is fine for now. Story Settings is just another type. 
+                */}
+                {elements.map(el => {
                     const typeSchema = schema[el.type];
-                    let parsedContent = {};
-                    try { parsedContent = JSON.parse(el.content || '{}'); } catch (e) { }
+                    let elementContent = {};
+                    try { elementContent = JSON.parse(el.content || '{}'); } catch (e) { }
 
                     const isEditing = editing?.id === el.id;
+
+                    // Parse editing content if currently editing, otherwise use element content
+                    let formValue = elementContent;
+                    if (isEditing) {
+                        try { formValue = JSON.parse(editing.content || '{}'); } catch (e) { }
+                    }
 
                     return (
                         <div key={el.id} className={`premium-card ${el.type} ${isEditing ? 'editing' : ''}`} id={`element-${el.id}`}>
@@ -89,53 +87,71 @@ function BibleView({ storyId, elements, schema, onRefresh, onAdd, onDelete }) {
                                     {typeSchema ? (
                                         <DynamicForm
                                             schema={typeSchema}
-                                            value={parsedContent}
+                                            value={formValue}
+                                            globalLists={{
+                                                ...globalLists,
+                                                bibleElements: elements.filter(e => ['character', 'location', 'timeline'].includes(e.type))
+                                            }}
                                             onChange={val => setEditing({ ...editing, content: JSON.stringify(val) })}
                                         />
                                     ) : (
-                                        <div className="bible-slash-editor" style={{ minHeight: '150px', marginTop: '1rem' }}>
-                                            <SlashEditor
-                                                bibleElements={elements.filter(e => e.id !== el.id)}
-                                                value={editing.content}
-                                                onChange={val => setEditing({ ...editing, content: val })}
-                                            />
-                                        </div>
+                                        <SlashEditor
+                                            value={editing.content || ''}
+                                            onChange={val => setEditing({ ...editing, content: val })}
+                                            bibleElements={elements.filter(e => ['character', 'location', 'timeline'].includes(e.type))}
+                                            placeholder="Description..."
+                                        />
                                     )}
                                     <div className="editor-actions">
                                         <button onClick={() => saveElement(editing)}>Save</button>
-                                        <button onClick={closeEditor}>Done</button>
+                                        <button onClick={() => setEditing(null)}>Cancel</button>
+                                        <span style={{ flex: 1 }}></span>
+                                        {el.type !== 'story_settings' && (
+                                            <button className="btn-delete" onClick={() => onDelete(el)}>Delete</button>
+                                        )}
                                     </div>
                                 </div>
                             ) : (
-                                <div onClick={() => navigate(`/stories/${storyId}/bible/${el.id}`)}>
+                                <>
                                     <div className="card-header">
-                                        <h3>{el.name}</h3>
-                                        {el.type !== 'story_settings' && (
-                                            <button
-                                                className="btn-delete-icon"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onDelete(el);
-                                                }}
-                                            >
-                                                &times;
-                                            </button>
+                                        {el.type !== 'story_settings' ? (
+                                            <h3>{el.name}</h3>
+                                        ) : (
+                                            <h3>Story Settings</h3>
                                         )}
+                                        <button
+                                            className="btn-edit-icon"
+                                            onClick={() => setEditing({ ...el })}
+                                            style={{ background: 'transparent', padding: '0.25rem' }}
+                                        >
+                                            ✎
+                                        </button>
                                     </div>
                                     <span className={`badge ${el.type}`}>{typeSchema?.name || el.type}</span>
                                     {typeSchema ? (
                                         <div className="content-preview">
-                                            {typeSchema.fields.slice(0, 3).map(f => (
-                                                <div key={f.key}>
-                                                    <strong>{f.label}:</strong> {String(parsedContent[f.key] || '')}
-                                                </div>
-                                            ))}
+                                            {typeSchema.fields.slice(0, 3).map(f => {
+                                                const val = elementContent[f.key];
+                                                return (
+                                                    <div key={f.key} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                                                        <strong>{f.label}:</strong>
+                                                        {Array.isArray(val) ? (
+                                                            <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                                                                {val.map(v => (
+                                                                    <span key={v} className="badge" style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem', background: 'rgba(255,255,255,0.1)' }}>{v}</span>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <span>{String(val || '')}</span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     ) : (
                                         <p className="content-preview">{el.content || 'No content yet...'}</p>
                                     )}
-                                    <small>v{el.version}</small>
-                                </div>
+                                </>
                             )}
                         </div>
                     );
