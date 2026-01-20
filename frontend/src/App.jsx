@@ -103,10 +103,12 @@ function InnerApp() {
       body: JSON.stringify({ title: modalData.title, description: '' })
     });
     const newStory = await res.json();
-    setStories([...stories, newStory]);
+    await fetchStories(); // Ensure list is synced with backend
     setModalType(null);
     setModalData({});
-    navigate(`/stories/${newStory.id}/bible`);
+    if (newStory && newStory.id) {
+      navigate(`/stories/${newStory.id}/bible`);
+    }
   };
 
   const deleteStory = async (id) => {

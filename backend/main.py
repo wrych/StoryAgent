@@ -46,6 +46,32 @@ def on_startup():
         }
     }
     
+    # Extended default schema
+    default_schema.update({
+        "location": {
+            "name": "Location",
+            "fields": [
+                {"key": "description", "label": "Description", "type": "text"},
+                {"key": "sights", "label": "Sights", "type": "array"},
+                {"key": "smells", "label": "Smells", "type": "array"}
+            ]
+        },
+        "arc": {
+            "name": "Story Arc",
+            "fields": [
+                {"key": "type", "label": "Arc Type", "type": "string"},
+                {"key": "resolution", "label": "Resolution", "type": "text"}
+            ]
+        },
+        "timeline": {
+            "name": "Timeline",
+            "fields": [
+                {"key": "date", "label": "Date/Time", "type": "string"},
+                {"key": "significance", "label": "Significance", "type": "text"}
+            ]
+        }
+    })
+    
     existing = crud.get_global_setting("bible_schema")
     if not existing:
         crud.set_global_setting("bible_schema", default_schema)

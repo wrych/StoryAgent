@@ -33,6 +33,20 @@ default_schema = {
             {"key": "sights", "label": "Sights", "type": "array"},
             {"key": "smells", "label": "Smells", "type": "array"}
         ]
+    },
+    "arc": {
+        "name": "Story Arc",
+        "fields": [
+            {"key": "type", "label": "Arc Type", "type": "string"},
+            {"key": "resolution", "label": "Resolution", "type": "text"}
+        ]
+    },
+    "timeline": {
+        "name": "Timeline",
+        "fields": [
+            {"key": "date", "label": "Date/Time", "type": "string"},
+            {"key": "significance", "label": "Significance", "type": "text"}
+        ]
     }
 }
 
