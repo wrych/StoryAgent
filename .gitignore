@@ -1,0 +1,6 @@
+backend/venv
+backend/story_agent.db
+backend/__pycache__
+
+frontend/dist
+frontend/node_modules
