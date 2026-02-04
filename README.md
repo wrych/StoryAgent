@@ -13,9 +13,23 @@ The goal of this project is to create a robust, local-first story writing enviro
 -   **Chapter Management**: Write and organize chapters with support for reordering.
 -   **Version Control**: granular history tracking for both chapters and story bible elements, allowing you to view and revert to previous versions.
 -   **Soft Delete**: "Recycle bin" functionality prevents accidental data loss.
+-   **AI Writing Assistant**: Integrated capability to work with local LLMs (like Ollama) to draft chapters using the Story Bible for context.
 -   **Local Persistence**: All data is stored locally in a SQLite database.
 -   **Dark Mode**: A modern, dark-themed UI optimized for writing.
 -   **Cross-Referencing**: Refer to bible elements within your text (e.g., `[[Character:Name]]`) for quick context.
+
+## AI Integration
+
+The Story Writing Agent supports local LLM integration to assist with drafting chapters.
+
+### Configuration
+In the **Global Settings** view, you can configure:
+-   **LLM Endpoint URL**: The API endpoint for your local LLM (e.g., `http://localhost:11434/api/generate` for Ollama).
+-   **Global System Prompt**: A central instruction set for the AI assistant.
+
+### How it Works
+1.  **Context Enrichment**: When you use the "Write with AI" feature, the agent automatically bundles your current Story Bible elements into the prompt, ensuring the AI is aware of your characters, locations, and world-building.
+2.  **Chapter Generation**: From the chapter editor, click **🪄 Write with AI**, describe what you want the chapter (or scene) to be about, and the agent will call your local LLM to generate the content.
 
 ## Technology Stack
 

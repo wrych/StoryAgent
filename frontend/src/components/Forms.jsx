@@ -1,6 +1,29 @@
 import React, { useState } from 'react';
 import { SlashEditor } from '../SlashEditor';
 
+export function FormField({ label, type = 'text', value, onChange, placeholder }) {
+    return (
+        <div className="form-group">
+            <label>{label}</label>
+            {type === 'text' ? (
+                <textarea
+                    value={value}
+                    onChange={e => onChange(e.target.value)}
+                    placeholder={placeholder}
+                    style={{ width: '100%', minHeight: '100px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '0.5rem' }}
+                />
+            ) : (
+                <input
+                    type={type}
+                    value={value}
+                    onChange={e => onChange(e.target.value)}
+                    placeholder={placeholder}
+                />
+            )}
+        </div>
+    );
+}
+
 export function ArrayInput({ value = [], onChange, placeholder }) {
     const [input, setInput] = useState('');
 

@@ -122,7 +122,7 @@ function BibleView({ storyId, elements, schema, globalLists, onRefresh, onAdd, o
                                         <button
                                             className="btn-edit-icon"
                                             onClick={() => setEditing({ ...el })}
-                                            style={{ background: 'transparent', padding: '0.25rem' }}
+                                            style={{ background: 'transparent', padding: '0.25rem', color: 'var(--text-primary)' }}
                                         >
                                             ✎
                                         </button>
@@ -142,14 +142,18 @@ function BibleView({ storyId, elements, schema, globalLists, onRefresh, onAdd, o
                                                                 ))}
                                                             </div>
                                                         ) : (
-                                                            <span>{String(val || '')}</span>
+                                                            f.type === 'text' ? (
+                                                                <div className="rich-text-preview" dangerouslySetInnerHTML={{ __html: val || '' }} />
+                                                            ) : (
+                                                                <span>{String(val || '')}</span>
+                                                            )
                                                         )}
                                                     </div>
                                                 );
                                             })}
                                         </div>
                                     ) : (
-                                        <p className="content-preview">{el.content || 'No content yet...'}</p>
+                                        <div className="content-preview rich-text-preview" dangerouslySetInnerHTML={{ __html: el.content || 'No content yet...' }} />
                                     )}
                                 </>
                             )}

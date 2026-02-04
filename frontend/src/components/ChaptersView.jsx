@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { SlashEditor } from '../SlashEditor';
+import { Modal } from './Modal';
+import { FormField } from './Forms';
+import { ChapterAssist } from './ChapterAssist';
 
 const API_BASE = 'http://localhost:8000';
 
@@ -8,6 +11,10 @@ function ChaptersView({ storyId, chapters, onRefresh, bibleElements, onAdd, onDe
     const { chapterId } = useParams();
     const navigate = useNavigate();
     const [editing, setEditing] = useState(null);
+    const [isAssistOpen, setIsAssistOpen] = useState(false);
+
+    // We remove the old simple AI modal state
+    const editorRef = useRef(null);
 
     useEffect(() => {
         if (chapterId && chapters.length > 0) {
@@ -28,6 +35,15 @@ function ChaptersView({ storyId, chapters, onRefresh, bibleElements, onAdd, onDe
         });
         // setEditing(null); // Don't close on save, keep working
         onRefresh();
+    };
+
+    const handleAssistFinish = (content) => {
+        if (editing) {
+            const updated = { ...editing, content: content };
+            setEditing(updated);
+            saveChapter(updated);
+            setIsAssistOpen(false);
+        }
     };
 
     return (
@@ -61,13 +77,23 @@ function ChaptersView({ storyId, chapters, onRefresh, bibleElements, onAdd, onDe
             <div className="chapter-content">
                 {editing ? (
                     <div className="chapter-editor">
-                        <input
-                            className="chapter-title-input"
-                            value={editing.title}
-                            onChange={e => setEditing({ ...editing, title: e.target.value })}
-                            style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-color)', borderRadius: '0', fontSize: '1.5rem', marginBottom: '1rem', color: 'white' }}
-                        />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <input
+                                className="chapter-title-input"
+                                value={editing.title}
+                                onChange={e => setEditing({ ...editing, title: e.target.value })}
+                                style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-color)', borderRadius: '0', fontSize: '1.5rem', color: 'white', flex: 1, marginRight: '1rem' }}
+                            />
+                            <button
+                                className="btn-ai-write"
+                                onClick={() => setIsAssistOpen(true)}
+                                style={{ background: 'var(--accent-secondary)', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                                🪄 Write with AI
+                            </button>
+                        </div>
                         <SlashEditor
+                            ref={editorRef}
                             bibleElements={bibleElements}
                             value={editing.content}
                             onChange={val => setEditing({ ...editing, content: val })}
@@ -79,6 +105,15 @@ function ChaptersView({ storyId, chapters, onRefresh, bibleElements, onAdd, onDe
                     <div className="empty-chapter">Select a chapter to write</div>
                 )}
             </div>
+
+            {isAssistOpen && (
+                <ChapterAssist
+                    storyId={storyId}
+                    bibleElements={bibleElements}
+                    onFinish={handleAssistFinish}
+                    onCancel={() => setIsAssistOpen(false)}
+                />
+            )}
         </div>
     );
 }

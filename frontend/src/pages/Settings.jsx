@@ -3,6 +3,10 @@ import React, { useState, useEffect } from 'react';
 function Settings({ schema, onSave }) {
     const [tempSchema, setTempSchema] = useState(schema);
     const [lists, setLists] = useState({});
+    const [aiSettings, setAiSettings] = useState({
+        llm_url: '',
+        llm_system_prompt: ''
+    });
 
     useEffect(() => {
         setTempSchema(schema);
@@ -25,6 +29,10 @@ function Settings({ schema, onSave }) {
                 }
             });
             setLists(listSettings);
+            setAiSettings({
+                llm_url: data.llm_url || '',
+                llm_system_prompt: data.llm_system_prompt || ''
+            });
         }
     };
 
@@ -55,6 +63,16 @@ function Settings({ schema, onSave }) {
                 onSave(newSchema);
             }
         }
+    };
+
+    const saveAiSetting = async (key, val) => {
+        const cleanVal = typeof val === 'string' ? val.replace(/^["']|["']$/g, '') : val;
+        await fetch(`http://localhost:8000/settings/${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cleanVal)
+        });
+        setAiSettings(prev => ({ ...prev, [key]: cleanVal }));
     };
 
     return (
@@ -118,6 +136,32 @@ function Settings({ schema, onSave }) {
                         }}
                         style={{ width: '100%' }}
                     />
+                </div>
+            </section>
+
+            <section className="settings-section">
+                <h2>AI Settings</h2>
+                <div className="schema-type-card" style={{ display: 'grid', gap: '1rem' }}>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>LLM Endpoint URL</label>
+                        <input
+                            style={{ width: '100%' }}
+                            value={aiSettings.llm_url}
+                            onChange={e => setAiSettings({ ...aiSettings, llm_url: e.target.value })}
+                            onBlur={e => saveAiSetting('llm_url', e.target.value)}
+                            placeholder="http://localhost:11434/api/generate"
+                        />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Global System Prompt</label>
+                        <textarea
+                            style={{ width: '100%', minHeight: '100px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '0.5rem' }}
+                            value={aiSettings.llm_system_prompt}
+                            onChange={e => setAiSettings({ ...aiSettings, llm_system_prompt: e.target.value })}
+                            onBlur={e => saveAiSetting('llm_system_prompt', e.target.value)}
+                            placeholder="You are a creative writing assistant..."
+                        />
+                    </div>
                 </div>
             </section>
 

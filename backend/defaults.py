@@ -27,3 +27,8 @@ DEFAULT_LISTS = {
         "Romantic"
     ]
 }
+
+DEFAULT_SETTINGS = {
+    "llm_url": "http://localhost:1234/v1/chat/completions",
+    "llm_system_prompt": "You are a creative writing assistant. Use the provided story bible context to help write engaging and consistent chapters."
+}
