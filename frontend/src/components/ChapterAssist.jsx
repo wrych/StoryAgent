@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SlashEditor } from '../SlashEditor';
+import { AssistModal } from './AssistModal';
 
 const STEPS = [
     { id: 'brief', label: 'Brief' },
@@ -443,22 +444,8 @@ export function ChapterAssist({ storyId, bibleElements, onFinish, onCancel }) {
     };
 
     return (
-        <div className="chapter-assist-overlay">
-            <div className="chapter-assist-modal">
-                <div className="stepper-header">
-                    {STEPS.map((s, idx) => (
-                        <div key={s.id} className={`step-item ${idx <= activeStep ? 'active' : ''} ${idx === activeStep ? 'current' : ''}`}>
-                            <div className="step-number">{idx + 1}</div>
-                            <span>{s.label}</span>
-                            {idx < STEPS.length - 1 && <div className="step-line" />}
-                        </div>
-                    ))}
-                </div>
-
-                <div className="assist-content">
-                    {renderStepContent()}
-                </div>
-            </div>
-        </div>
+        <AssistModal steps={STEPS} activeStep={activeStep}>
+            {renderStepContent()}
+        </AssistModal>
     );
 }

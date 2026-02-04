@@ -575,3 +575,278 @@ async def write_chapter_v2(payload: WriteChapterRequest):
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
+
+class AnalyzeBibleBriefRequest(BaseModel):
+    story_id: int
+    user_brief: str
+    element_type: str
+
+@app.post("/ai/analyze-bible-brief")
+async def analyze_bible_brief(payload: AnalyzeBibleBriefRequest):
+    from sqlmodel import select
+    import json
+    
+    with models.Session(database.engine) as session:
+        elements = session.exec(select(models.BibleElement).where(models.BibleElement.story_id == payload.story_id, models.BibleElement.is_deleted == False)).all()
+        
+    bible_catalog = "\n".join([f"- {el.name} ({el.type})" for el in elements])
+    
+    system_prompt = """You are a continuity editor for a story bible.
+    Analyze the user's brief for a new story element and identify which EXISTING elements are most relevant to it (e.g. related characters, locations, factions).
+    
+    Return VALID JSON with double quotes around all keys and strings:
+    {
+        "relevant_elements": ["Name of Element 1", "Name of Element 2"],
+        "reasoning": "Brief explanation of why these are relevant."
+    }
+    """
+    
+    user_prompt = f"""
+    EXISTING ELEMENTS:
+    {bible_catalog}
+    
+    USER BRIEF ({payload.element_type}):
+    {payload.user_brief}
+    
+    TASK:
+    Identify relevant existing elements that should be considered when fleshing out this new element.
+    """
+    
+    llm_url = crud.get_global_setting("llm_url")
+    def parse_url(s): 
+        if not s: return "http://localhost:1234/v1/chat/completions"
+        try: 
+            v = json.loads(s.value)
+            return v if isinstance(v, str) else s.value
+        except: return s.value
+    url = parse_url(llm_url)
+    
+    import httpx
+    import re
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json={
+                "model": "model-identifier",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.3,
+                "stream": False 
+            }, timeout=30.0)
+            
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
+            
+            # Helper to strip code fences
+            def clean_markdown_json(text):
+                pattern = r"```(?:json)?\s*([\s\S]*?)\s*```"
+                match = re.search(pattern, text)
+                if match:
+                    return match.group(1)
+                return text.strip()
+
+            cleaned_content = clean_markdown_json(content)
+
+            try:
+                start = cleaned_content.find('{')
+                end = cleaned_content.rfind('}') + 1
+                if start != -1 and end != -1:
+                    json_str = cleaned_content[start:end]
+                    # strict=False allows control characters/newlines in strings
+                    return json.loads(json_str, strict=False)
+                else:
+                    raise Exception("No JSON braces found")
+            except Exception as e:
+                print(f"Smart Context Parse Error: {e} | Content: {cleaned_content}")
+                # Fallback: Regex extract relevant_elements
+                # Look for "relevant_elements": ["Item 1", "Item 2"]
+                # This is a basic regex, might not catch everything but better than nothing.
+                relevant = []
+                try:
+                    # Match header "relevant_elements": [
+                    # Then capture everything until ]
+                    match = re.search(r'"relevant_elements"\s*:\s*\[([\s\S]*?)\]', cleaned_content)
+                    if match:
+                        list_content = match.group(1)
+                        # Find all "String" or 'String' inside
+                        items = re.findall(r'"([^"]+)"', list_content)
+                        if not items:
+                            items = re.findall(r"'([^']+)'", list_content)
+                        relevant = items[:5] # Limit just in case
+                except: pass
+                
+                return {
+                    "relevant_elements": relevant, 
+                    "reasoning": f"Could not fully parse AI response, but found {len(relevant)} elements. (Raw: {content[:100]}...)"
+                }
+                
+    except Exception as e:
+        # Fallback
+        return {"relevant_elements": [], "reasoning": f"Error: {str(e)}"}
+
+class ProposeBibleElementRequest(BaseModel):
+    story_id: int
+    user_brief: str
+    element_type: str
+    relevant_elements: Optional[list[str]] = None
+
+@app.post("/ai/propose-bible-element")
+async def propose_bible_element(payload: ProposeBibleElementRequest):
+    from sqlmodel import select
+    import re
+    # 1. Fetch Context
+    with models.Session(database.engine) as session:
+        elements = session.exec(select(models.BibleElement).where(models.BibleElement.story_id == payload.story_id, models.BibleElement.is_deleted == False)).all()
+        
+    # Filter context if relevant_elements provided
+    if payload.relevant_elements:
+        lower_rels = [r.lower() for r in payload.relevant_elements]
+        # Include Story Settings always if exists
+        filtered_elements = [el for el in elements if el.name.lower() in lower_rels or el.type == 'story_settings']
+        # Also maybe include few others randomly or generic? No, strict is better for 'smart' context.
+        # But if list is empty, maybe fallback to all?
+        if not filtered_elements:
+             filtered_elements = elements
+    else:
+        filtered_elements = elements
+
+    # Create a concise catalog of existing elements to avoid duplicates
+    # For the proposal, we might want MORE than just name/type for the relevant ones.
+    # Let's give name, type, and short excerpt of content? 
+    # For now, let's stick to the catalog format but maybe add description?
+    # The original prompt used name and type. Let's try to add the 'content' description if available for relevant ones.
+    
+    catalog_lines = []
+    for el in filtered_elements:
+        desc = ""
+        try:
+            c = json.loads(el.content) if isinstance(el.content, str) else el.content
+            if isinstance(c, dict) and "description" in c:
+                desc = f": {str(c['description'])[:100]}..."
+        except: pass
+        catalog_lines.append(f"- {el.name} ({el.type}){desc}")
+
+    bible_catalog = "\n".join(catalog_lines)
+    
+    # 2. Construct Prompt
+    system_prompt = """You are a creative writing assistant specializing in world-building. 
+    Your task is to take a concise description of exactly one story element (Character, Location, etc.) and generate a detailed, structured profile for it.
+    
+    Return VALID JSON with this structure:
+    {
+        "name": "Creative Name",
+        "type": "character|location|arc|timeline", 
+        "content": {
+            "description": "Rich detailed description. MUST be a single string. Newlines should be escaped as \\n.",
+        }
+    }
+    
+    CRITICAL Rules
+    1. Return EXACTLY ONE story bible element.
+    1. Output MUST be valid JSON.
+    2. Use double quotes for all keys and strings.
+    3. Escape all newlines and special characters in strings.
+    4. Do not include comments in the JSON.
+    """
+    
+    user_prompt = f"""
+    EXISTING ELEMENTS:
+    {bible_catalog}
+    
+    USER REQUEST ({payload.element_type}):
+    {payload.user_brief}
+    
+    TASK:
+    Create a robust profile for this new element. Make it fit the existing world. Keep it below 250 words.
+    """
+    
+    # 3. Call LLM
+    llm_url = crud.get_global_setting("llm_url")
+    def parse_url(s): 
+        if not s: return "http://localhost:1234/v1/chat/completions"
+        try: 
+            v = json.loads(s.value)
+            return v if isinstance(v, str) else s.value
+        except: return s.value
+    url = parse_url(llm_url)
+    
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json={
+                "model": "model-identifier",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.7,
+                "stream": False 
+            }, timeout=60.0)
+            
+            if resp.status_code != 200:
+                raise HTTPException(status_code=500, detail=f"LLM Error: {resp.text}")
+                
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
+            
+            # Helper to strip code fences
+            def clean_markdown_json(text):
+                pattern = r"```(?:json)?\s*([\s\S]*?)\s*```"
+                match = re.search(pattern, text)
+                if match:
+                    return match.group(1)
+                return text.strip()
+
+            cleaned_content = clean_markdown_json(content)
+            
+            # extract JSON
+            try:
+                # Find first { and last }
+                start = cleaned_content.find('{')
+                end = cleaned_content.rfind('}') + 1
+                if start != -1 and end != -1:
+                    json_str = cleaned_content[start:end]
+                    # strict=False allows control characters (newlines) in strings
+                    data_obj = json.loads(json_str, strict=False)
+                    
+                    # Post-processing: Flatten description if it's an object/dict
+                    def flatten_to_markdown(val, depth=0):
+                        if isinstance(val, dict):
+                            lines = []
+                            for k, v in val.items():
+                                prefix = "#" * (depth + 3) # start at h3
+                                lines.append(f"{prefix} {k}")
+                                lines.append(flatten_to_markdown(v, depth + 1))
+                            return "\n\n".join(lines)
+                        elif isinstance(val, list):
+                            return "\n".join([f"- {flatten_to_markdown(item, depth)}" for item in val])
+                        else:
+                            return str(val)
+
+                    if "content" in data_obj and "description" in data_obj["content"]:
+                        desc = data_obj["content"]["description"]
+                        if isinstance(desc, (dict, list)):
+                            data_obj["content"]["description"] = flatten_to_markdown(desc)
+                    
+                    return data_obj
+                else:
+                    raise Exception("No JSON braces found")
+            except Exception as e:
+                print(f"JSON Parse Error: {e}")
+                # Fallback: Try regex to at least get the Name if parsable
+                fallback_name = "New Element"
+                try:
+                    name_match = re.search(r'"name":\s*"([^"]+)"', cleaned_content)
+                    if name_match:
+                        fallback_name = name_match.group(1)
+                except: pass
+
+                return {
+                    "name": fallback_name,
+                    "type": payload.element_type,
+                    "content": { "description": cleaned_content }
+                }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

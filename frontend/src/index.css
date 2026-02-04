@@ -116,6 +116,27 @@ textarea:focus {
     box-shadow: var(--shadow-lg);
 }
 
+.bible-card-minimal {
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.bible-card-minimal:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--accent-primary);
+}
+
+.bible-card-minimal .card-header {
+    margin-bottom: 0.5rem;
+    justify-content: center;
+}
+
 /* Tiptap Editor Styles */
 .tiptap-editor {
     min-height: 300px;
